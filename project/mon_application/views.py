@@ -1,19 +1,46 @@
 from django.shortcuts import render,redirect
 from django.contrib.auth.models import User,auth
 from django.contrib import messages
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
-from .models import profile
+from .models import profile,post,like
 
 
 # Create your views here.
 @login_required(login_url='signin')
 def index(request):
-    return  render(request,'index.html')
+    user_object=User.objects.get(username=request.user.username)
+    image=profile.objects.get(user=user_object)
+    posts=post.objects.all()
+    
+    return  render(request,'index.html',{'user_profile':image,'posts':posts})
 
 @login_required(login_url='signin')
 def settings(request):
-    return render(request,'setting.html')
+    user_profile=profile.objects.get(user=request.user)
+    if request.method=="POST":
+        
+        if request.FILES.get('image')==None:
+            image=user_profile.profileimg
+            bio=request.POST['bio']
+            location=request.POST['location']
+            
+            user_profile.profileimg=image
+            user_profile.bio=bio
+            user_profile.location=location
+            user_profile.save()
+        else:
+            image=request.FILES.get('image')
+            bio=request.POST['bio']
+            location=request.POST['location']
+            
+            user_profile.profileimg=image
+            user_profile.bio=bio
+            user_profile.location=location
+            user_profile.save()
+        return redirect('settings')
+            
+    return render(request,'setting.html',{'user_profile':user_profile})
     
 
 def signin(request):
@@ -61,7 +88,56 @@ def signup(request):
     else:
         return render(request,'signup.html')
     
+
+def upload(request):
+    if request.method=="POST":
+       user=request.user.username
+       image=request.FILES.get('image_upload')
+       caption=request.POST["caption"] 
+       post_create=post.objects.create(user=user,image=image,caption=caption)
+       post_create.save()
+       return redirect('/')
+    else:
+        return redirect('/')
     
 @login_required(login_url='signin')  
 def logout(request):
     return redirect('signin')
+
+ 
+
+def profiles(request,pk):
+    user_object=User.objects.get(username=pk)
+    user_profile=profile.objects.get(user=user_object)
+    user_post=post.objects.filter(user=pk)
+    combien=len(user_post)
+    context={
+        'user_object':user_object,
+        'user_profile':user_profile,
+        'user_post':user_post,
+        'combien':combien,
+    }
+    return render(request,"profile.html",context)
+
+
+
+def likes_post(request):
+    username=request.user.username
+    post_id=request.GET.get('post_id')
+    posts=post.objects.get(id=post_id)
+    like_filter=like.objects.filter(post_id=post_id,username=username).first()
+    if like_filter==None:
+        new_like=like.objects.create(post_id=post_id,username=username)
+        new_like.save()
+        posts.no_of_likes=posts.no_of_likes+1
+        posts.save()
+        return redirect('/')
+    else:
+        like_filter.delete()
+        posts.no_of_likes=posts.no_of_likes-1
+        posts.save()
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': True, 'no_of_likes': post.no_of_likes})
+
+    return redirect('/')
