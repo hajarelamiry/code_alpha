@@ -26,3 +26,6 @@ class like(models.Model):
     post_id=models.CharField(max_length=500)
     username=models.CharField(max_length=100)
     
+class followers(models.Model):
+    follower=models.CharField(max_length=100)
+    user=models.CharField(max_length=100)
